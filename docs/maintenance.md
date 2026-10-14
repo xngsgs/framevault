@@ -1,5 +1,14 @@
 # Maintenance record
 
+## 2026-10-14 — v0.1.1 interface improvement
+
+- Replaced the first layout with a studio-style collection, consistent original icons, clearer typography and light/dark palettes.
+- Added persistent gallery/list mode, status tabs, filter chips, actionable overview counts and responsive project selection.
+- Reworked asset details into a large preview plus metadata/history tabs; added image enlargement and canvas controls.
+- Improved upload feedback, shortcuts, empty/error/loading states and preserved all existing asset/version behavior.
+- Fixed a search/export mismatch caused by leading or trailing spaces in the query.
+- All 12 functional tests passed; live browser checks verified the changed workflows. Full evidence and limitations are in `docs/interface-v0.1.1.md`.
+
 ## 2026-10-14 — Initial implementation
 
 - Implemented a local asset-management workflow and an optional, reviewable vision-tagging adapter.

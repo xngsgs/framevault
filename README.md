@@ -29,8 +29,12 @@ On Windows, use `npm.cmd start` if PowerShell blocks `npm.ps1`.
 - Preview and download historical versions.
 - Export a JSON manifest of the currently filtered collection, including all its versions and hashes.
 - Optionally ask a vision model for tags, review the proposal, then explicitly accept it.
+- Switch between light/dark themes and gallery/list layouts; both preferences survive a reload.
+- Use status tabs, project filters and removable filter chips; the overview shortcuts open approved or pending collections.
+- Inspect version history in a dedicated tab, open a large image preview, and switch the preview canvas for transparent images.
+- Click or drop one image into the import dialog. Press `/` to search or `N` to import when not editing text.
 
-The interface currently uses Simplified Chinese. The project documentation is bilingual where useful.
+The interface currently uses Simplified Chinese. The project documentation is bilingual where useful. See the [v0.1.1 interface review](docs/interface-v0.1.1.md) for before/after screenshots and browser validation.
 
 ## Optional AI configuration
 

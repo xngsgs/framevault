@@ -46,7 +46,7 @@ export function createApp({ dataDir = process.env.FRAMEVAULT_DATA_DIR || join(ro
       const url = new URL(req.url, `http://${host}`);
       const filters = Object.fromEntries(['q','project','type','status'].map(key => [key, url.searchParams.get(key) || '']));
       if (req.method === 'GET') {
-        if (url.pathname === '/api/health') return json(200, { ok: true, version: '0.1.0', aiEnabled: !!(ai.key && ai.model), aiProvider: ai.key && ai.model ? new URL(ai.base).origin : null });
+        if (url.pathname === '/api/health') return json(200, { ok: true, version: '0.1.1', aiEnabled: !!(ai.key && ai.model), aiProvider: ai.key && ai.model ? new URL(ai.base).origin : null });
         if (url.pathname === '/api/assets') return json(200, { assets: store.list(filters) });
         if (url.pathname === '/api/manifest') {
           res.setHeader('Content-Disposition', 'attachment; filename="framevault-manifest.json"');
@@ -92,6 +92,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be between 1 and 65535');
   const { server, store } = createApp();
   server.on('error', error => { console.error(`FrameVault: ${error.message}`); store.close(); process.exitCode = 1; });
-  server.listen(port, '127.0.0.1', () => console.log(`FrameVault v0.1.0\nLocal: http://127.0.0.1:${port}\nYour library is stored locally. Press Ctrl+C to stop.`));
+  server.listen(port, '127.0.0.1', () => console.log(`FrameVault v0.1.1\nLocal: http://127.0.0.1:${port}\nYour library is stored locally. Press Ctrl+C to stop.`));
   for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => server.close(() => { store.close(); process.exit(0); }));
 }
