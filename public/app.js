@@ -1,7 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const TYPE = { character: '角色概念', outfit: '服装方案', background: '场景背景', prop: '道具设定', reference: '参考资料' };
 const STATUS = { draft: '草稿', review: '待审核', approved: '已确认', archived: '已归档' };
-const TYPE_ICON = { character:'user', outfit:'shirt', background:'image', prop:'box', reference:'layers' };
+const TYPE_ICON = { character:'user', outfit:'shirt', background:'image', prop:'gem', reference:'book' };
 const state = { assets: [], type: '', project: '', query: '', status: '', selected: null, proposal: null, versionTarget: null, health: {}, detailPanel:'metadata', detailsRequest:0 };
 let toastTimer;
 let previewUrl;
@@ -14,7 +14,7 @@ function node(tag, className, content) {
 }
 function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('class','icon'); svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('aria-hidden','true');
+  svg.setAttribute('class','icon'); svg.setAttribute('viewBox','0 0 24 24'); svg.setAttribute('aria-hidden','true'); svg.setAttribute('focusable','false');
   const use = document.createElementNS('http://www.w3.org/2000/svg','use');
   use.setAttribute('href',`#i-${name}`); svg.append(use); return svg;
 }
