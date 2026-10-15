@@ -4,7 +4,7 @@
 
 FrameVault keeps images, immutable file versions, searchable metadata and approval states together. Its optional vision adapter proposes tags for human review. The library works without an AI account.
 
-![FrameVault creative asset library](docs/images/overview.jpg)
+![FrameVault creative asset library](docs/images/icons-light.png)
 
 ## Quick start / 快速开始
 
@@ -34,7 +34,7 @@ On Windows, use `npm.cmd start` if PowerShell blocks `npm.ps1`.
 - Inspect version history in a dedicated tab, open a large image preview, and switch the preview canvas for transparent images.
 - Click or drop one image into the import dialog. Press `/` to search or `N` to import when not editing text.
 
-The interface currently uses Simplified Chinese. The project documentation is bilingual where useful. See the [v0.1.1 interface review](docs/interface-v0.1.1.md) for before/after screenshots and browser validation.
+The interface currently uses Simplified Chinese. The project documentation is bilingual where useful. See the [v0.1.2 icon refinement](docs/iconography-v0.1.2.md) for the current brand, before/after screenshots and browser validation, and the [v0.1.1 interface review](docs/interface-v0.1.1.md) for the earlier layout redesign.
 
 ## Optional AI configuration
 

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="body" x1="14" y1="6" x2="52" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B9A5F8"/><stop offset=".46" stop-color="#8461D9"/><stop offset="1" stop-color="#4E2B9A"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="14" y1="8" x2="48" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4ECFF" stop-opacity=".85"/><stop offset=".48" stop-color="#C3ABFF" stop-opacity=".2"/><stop offset="1" stop-color="#34146E" stop-opacity=".55"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="21" y1="14" x2="40" y2="46" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".2"/><stop offset="1" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="letter" x1="23" y1="19" x2="39" y2="44" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#E7D9FF"/>
+    </linearGradient>
+    <filter id="shadow" x="5" y="44" width="54" height="20" filterUnits="userSpaceOnUse"><feGaussianBlur stdDeviation="2.2"/></filter>
+  </defs>
+  <ellipse cx="32" cy="54" rx="19" ry="3.5" fill="#44237F" opacity=".18" filter="url(#shadow)"/>
+  <path d="M32 5C50 5 58 13 58 31S50 57 32 57 6 49 6 31 14 5 32 5Z" fill="url(#body)"/>
+  <path d="M32 6C49.4 6 57 13.6 57 31S49.4 56 32 56 7 48.4 7 31 14.6 6 32 6Z" stroke="url(#rim)" stroke-width="1.4"/>
+  <path d="M12 30C12 15 19 11 32 11c10 0 16 3 19 9-10-2-17 0-22 6-5 5-10 7-17 7v-3Z" fill="url(#glass)"/>
+  <path d="M24 44V24c0-3.3 1.7-5 5-5h14M24 31.5h14" stroke="#452283" stroke-opacity=".35" stroke-width="5.4" stroke-linecap="round" transform="translate(0 1.3)"/>
+  <path d="M24 43V24c0-3.3 1.7-5 5-5h14M24 31.5h13" stroke="url(#letter)" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M43 40v4a2 2 0 0 1-2 2h-4" stroke="#E5D7FF" stroke-opacity=".65" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M16 19c1.7-4.5 5.5-6.7 10.5-7" stroke="white" stroke-opacity=".4" stroke-width="1.4" stroke-linecap="round"/>
+</svg>

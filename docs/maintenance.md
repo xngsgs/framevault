@@ -1,5 +1,13 @@
 # Maintenance record
 
+## 2026-10-15 — v0.1.2 icon refinement (on demand)
+
+- Replaced the stacked CSS logo with an original shaded SVG mark and matching favicon.
+- Redrew the interface symbols, removed statistic tile backgrounds and retained accessible names on icon-only controls.
+- Verified light/dark desktop and 390px mobile layouts plus filtering, view switching, upload and preview controls using an isolated demo library.
+- Syntax checks and all 12 functional tests passed locally. See `docs/iconography-v0.1.2.md` for visual evidence and validation limits.
+- This was requested manual maintenance. Recurring maintenance remains canceled.
+
 ## 2026-10-14 — v0.1.1 interface improvement
 
 - Replaced the first layout with a studio-style collection, consistent original icons, clearer typography and light/dark palettes.
