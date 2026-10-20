@@ -8,6 +8,7 @@ import { request as httpRequest } from 'node:http';
 import { createStore } from '../src/store.js';
 import { createApp } from '../src/server.js';
 import { suggestTags } from '../src/ai.js';
+import { importItems, runImportQueue, selectAssets } from '../public/library.js';
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a+VsAAAAASUVORK5CYII=', 'base64');
 const PNG2 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
@@ -72,7 +73,7 @@ test('invalid metadata and spoofed images are rejected before insertion',t=>{
   assert.throws(()=>store.create({...body(),data:'data:image/svg+xml;base64,PHN2Zz4='}),{status:400});
   assert.equal(store.list().length,0);
 });
-test('library survives reopen with approval, versions and hashes intact',t=>{
+test('an existing schema-v1 library survives reopen and bulk organizing with versions intact',t=>{
   const directory=mkdtempSync(join(tmpdir(),'framevault-persist-'));
   let second;
   t.after(()=>{second?.close();removeFixture(directory);});
@@ -80,6 +81,14 @@ test('library survives reopen with approval, versions and hashes intact',t=>{
   second=createStore(directory);
   assert.equal(second.get(asset.id).status,'approved');
   assert.equal(second.get(asset.id).latest.sha256,createHash('sha256').update(PNG).digest('hex'));
+  assert.equal(second.db.prepare('PRAGMA user_version').get().user_version,1);
+  const existing = second.get(asset.id);
+  second.updateMany({ids:[asset.id],versions:{[asset.id]:existing.latest.id},changes:{project:'整理后的项目',status:'review'}});
+  second.close(); second=createStore(directory);
+  assert.equal(second.get(asset.id).project,'整理后的项目');
+  assert.equal(second.get(asset.id).status,'review');
+  assert.equal(second.get(asset.id).latest.sha256,existing.latest.sha256);
+  assert.equal(second.get(asset.id).versions.length,existing.versions.length);
 });
 test('demo assets are original, repeat seeding is refused and hashes match actual SVG bytes',t=>{
   const {store}=storeFixture(t);
@@ -101,6 +110,66 @@ test('HTTP import, update, media fetch and download manifest work end to end',as
   const exported=await request('/api/manifest?status=approved');assert.match(exported.headers.get('content-disposition'),/attachment/);
   assert.equal((await exported.json()).assets.length,1);
 });
+test('bulk changes are atomic, preserve all image versions and reject stale selections', t => {
+  const {store} = storeFixture(t);
+  const assets = store.seed().slice(0,2);
+  const ids = assets.map(a=>a.id);
+  const versions = Object.fromEntries(assets.map(a=>[a.id,a.latest.id]));
+  const hashes = assets.map(a=>a.latest.sha256);
+  const updated = store.updateMany({ids,versions,changes:{project:'新项目',status:'approved'}});
+  assert.ok(updated.every(a=>a.project==='新项目' && a.status==='approved'));
+  assert.deepEqual(updated.map(a=>a.latest.sha256), hashes);
+  assert.throws(()=>store.updateMany({ids:[ids[0],'00000000-0000-0000-0000-000000000000'],versions,changes:{project:'不能写入'}}),{status:404});
+  assert.equal(store.get(ids[0]).project,'新项目');
+  assert.throws(()=>store.updateMany({ids,versions,changes:{status:'published'}}),{status:400});
+  assert.throws(()=>store.updateMany({ids,versions,changes:{project:' '}}),{status:400});
+  assert.throws(()=>store.updateMany({ids,versions,changes:{title:'不能批量改名'}}),{status:400});
+  assert.throws(()=>store.updateMany({ids,changes:{status:'review'}}),{status:400});
+  assert.throws(()=>store.updateMany({ids:Array(101).fill(ids[0]),versions,changes:{status:'review'}}),{status:400});
+  store.addVersion(ids[0],body());
+  assert.throws(()=>store.updateMany({ids,versions,changes:{status:'approved'}}),{status:409});
+  assert.equal(store.get(ids[0]).status,'draft');
+  assert.equal(store.get(ids[1]).status,'approved');
+  assert.equal(store.get(ids[0]).versions[1].sha256,hashes[0]);
+});
+
+test('HTTP bulk editing and exact tag exports agree with the visible collection', async t => {
+  const {request,base} = await appFixture(t);
+  const first = await (await request('/api/assets','POST',{...body(),tags:['紫色']})).json();
+  const second = await (await request('/api/assets','POST',{...body(PNG2),title:'其他图',tags:['紫色外套']})).json();
+  const selection = {ids:[first.id,second.id],versions:{[first.id]:first.latest.id,[second.id]:second.latest.id},changes:{project:'批量项目',status:'review'}};
+  const response = await request('/api/assets/bulk','PATCH',selection);
+  assert.equal(response.status,200);
+  const all = (await (await request('/api/assets')).json()).assets;
+  assert.ok(all.every(a=>a.project==='批量项目' && a.status==='review'));
+  const tag = encodeURIComponent('紫色');
+  const filtered = (await (await request(`/api/assets?tag=${tag}`)).json()).assets;
+  const exported = await (await request(`/api/manifest?tag=${tag}`)).json();
+  assert.deepEqual(filtered.map(a=>a.id),[first.id]);
+  assert.deepEqual(exported.assets.map(a=>a.id),selectAssets(all,{tag:'紫色'}).map(a=>a.id));
+  assert.equal((await request('/api/assets/bulk','PATCH',selection,{origin:'https://attacker.example'})).status,403);
+  for (const path of ['/library.js','/workbench.js','/workbench.css','/brand-mark.svg']) {
+    const staticResponse = await fetch(base+path); assert.equal(staticResponse.status,200);
+    assert.match(staticResponse.headers.get('content-type'),path.endsWith('.css')?/text\/css/:path.endsWith('.svg')?/image\/svg\+xml/:/text\/javascript/);
+  }
+});
+
+test('a real HTTP import queue keeps successes after duplicate and invalid-image failures', async t => {
+  const {request} = await appFixture(t);
+  const queue = importItems([{name:'first.png',type:'image/png',size:PNG.length},{name:'duplicate.png',type:'image/png',size:PNG.length},
+    {name:'bad.png',type:'image/png',size:10},{name:'last.png',type:'image/png',size:PNG2.length}]);
+  await runImportQueue(queue,{upload:async item=>{
+    const bytes = item.id===3?PNG2:item.id===2?Buffer.from('bad'):PNG;
+    const response = await request('/api/assets','POST',{...body(bytes),title:item.title});
+    const result = await response.json(); if(!response.ok) throw new Error(result.error); return result;
+  }});
+  assert.deepEqual(queue.map(i=>i.status),['done','failed','failed','done']);
+  const assets = (await (await request('/api/assets')).json()).assets;
+  assert.equal(assets.length,2);
+  assert.ok(assets.every(a=>a.status==='draft'));
+  assert.equal(queue[0].asset.latest.sha256,createHash('sha256').update(PNG).digest('hex'));
+});
+
 test('HTTP rejects cross-origin mutations, invalid hosts, malformed JSON and traversal',async t=>{
   const {request,base}=await appFixture(t);
   assert.equal((await request('/api/assets','POST',body(),{origin:'https://attacker.example'})).status,403);

@@ -44,9 +44,9 @@ export function createApp({ dataDir = process.env.FRAMEVAULT_DATA_DIR || join(ro
       const origin = req.headers.origin;
       if (origin && origin !== `http://${host}` || req.headers['sec-fetch-site'] === 'cross-site') throw new HttpError(403, 'Cross-site requests are not allowed');
       const url = new URL(req.url, `http://${host}`);
-      const filters = Object.fromEntries(['q','project','type','status'].map(key => [key, url.searchParams.get(key) || '']));
+      const filters = Object.fromEntries(['q','project','type','status','tag'].map(key => [key, url.searchParams.get(key) || '']));
       if (req.method === 'GET') {
-        if (url.pathname === '/api/health') return json(200, { ok: true, version: '0.1.2', aiEnabled: !!(ai.key && ai.model), aiProvider: ai.key && ai.model ? new URL(ai.base).origin : null });
+        if (url.pathname === '/api/health') return json(200, { ok: true, version: '0.2.0', aiEnabled: !!(ai.key && ai.model), aiProvider: ai.key && ai.model ? new URL(ai.base).origin : null });
         if (url.pathname === '/api/assets') return json(200, { assets: store.list(filters) });
         if (url.pathname === '/api/manifest') {
           res.setHeader('Content-Disposition', 'attachment; filename="framevault-manifest.json"');
@@ -54,7 +54,7 @@ export function createApp({ dataDir = process.env.FRAMEVAULT_DATA_DIR || join(ro
         }
         const single = /^\/api\/assets\/([a-f0-9-]{36})$/.exec(url.pathname);
         if (single) return json(200, store.get(single[1]));
-        const staticFiles = { '/': ['index.html','text/html; charset=utf-8'], '/app.js': ['app.js','text/javascript; charset=utf-8'], '/styles.css': ['styles.css','text/css; charset=utf-8'], '/brand-mark.svg': ['brand-mark.svg','image/svg+xml'] };
+        const staticFiles = { '/': ['index.html','text/html; charset=utf-8'], '/app.js': ['app.js','text/javascript; charset=utf-8'], '/library.js': ['library.js','text/javascript; charset=utf-8'], '/workbench.js': ['workbench.js','text/javascript; charset=utf-8'], '/workbench.css': ['workbench.css','text/css; charset=utf-8'], '/styles.css': ['styles.css','text/css; charset=utf-8'], '/brand-mark.svg': ['brand-mark.svg','image/svg+xml'] };
         if (staticFiles[url.pathname]) { const [file, mime] = staticFiles[url.pathname]; return serve(join(root,'public',file), mime); }
         const demo = /^\/demo\/([a-z]+)\.svg$/.exec(url.pathname);
         if (demo && DEMO.includes(demo[1])) return serve(join(root,'public','demo',`${demo[1]}.svg`), 'image/svg+xml');
@@ -62,6 +62,7 @@ export function createApp({ dataDir = process.env.FRAMEVAULT_DATA_DIR || join(ro
         if (media) return serve(join(store.media, media[1]), MIME[media[2]]);
       }
       if (req.method === 'POST' && url.pathname === '/api/assets') return json(201, store.create(await readJson(req)));
+      if (req.method === 'PATCH' && url.pathname === '/api/assets/bulk') return json(200, { assets: store.updateMany(await readJson(req)) });
       if (req.method === 'POST' && url.pathname === '/api/demo') { await readJson(req); return json(201, { assets: store.seed() }); }
       const action = /^\/api\/assets\/([a-f0-9-]{36})(?:\/(versions|suggest-tags))?$/.exec(url.pathname);
       if (action) {
@@ -92,6 +93,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be between 1 and 65535');
   const { server, store } = createApp();
   server.on('error', error => { console.error(`FrameVault: ${error.message}`); store.close(); process.exitCode = 1; });
-  server.listen(port, '127.0.0.1', () => console.log(`FrameVault v0.1.2\nLocal: http://127.0.0.1:${port}\nYour library is stored locally. Press Ctrl+C to stop.`));
+  server.listen(port, '127.0.0.1', () => console.log(`FrameVault v0.2.0\nLocal: http://127.0.0.1:${port}\nYour library is stored locally. Press Ctrl+C to stop.`));
   for (const signal of ['SIGINT','SIGTERM']) process.on(signal, () => server.close(() => { store.close(); process.exit(0); }));
 }

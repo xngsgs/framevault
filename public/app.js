@@ -1,8 +1,11 @@
+import { selectAssets } from './library.js';
+import { setupWorkbench } from './workbench.js';
 const $ = selector => document.querySelector(selector);
 const TYPE = { character: '角色概念', outfit: '服装方案', background: '场景背景', prop: '道具设定', reference: '参考资料' };
 const STATUS = { draft: '草稿', review: '待审核', approved: '已确认', archived: '已归档' };
 const TYPE_ICON = { character:'user', outfit:'shirt', background:'image', prop:'gem', reference:'book' };
-const state = { assets: [], type: '', project: '', query: '', status: '', selected: null, proposal: null, versionTarget: null, health: {}, detailPanel:'metadata', detailsRequest:0 };
+const state = { assets: [], type: '', project: '', query: '', status: '', tag: '', checked: new Map(), selected: null, proposal: null, versionTarget: null, health: {}, detailPanel:'metadata', detailsRequest:0 };
+let workbench;
 let toastTimer;
 let previewUrl;
 
@@ -50,9 +53,19 @@ function toast(message, kind = 'success') {
   toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 4500);
 }
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { 'content-type': 'application/json' }, body: options.body === undefined ? undefined : JSON.stringify(options.body) });
+  let response;
+  try { response = await fetch(path, { ...options, headers: { 'content-type': 'application/json' }, body: options.body === undefined ? undefined : JSON.stringify(options.body) }); }
+  catch { throw new Error('无法连接本地服务，请检查服务是否运行'); }
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || '请求失败');
+  if (!response.ok) {
+    let message = body.error || '请求失败';
+    if (message.startsWith('Duplicate image')) message = '素材库里已有相同图片，本次未重复导入';
+    if (message === 'This image already exists in this asset') message = '这张图片已存在于当前素材的历史版本中';
+    if (message.startsWith('An image version changed')) message = '选中的素材已有新版本。请刷新素材库，检查新图后重新选择。';
+    if (message === 'Select 1 to 100 assets') message = '每次请选择 1–100 份素材';
+    if (message === 'The image content does not match its file type') message = '图片内容与文件类型不符，请检查图片能否正常打开';
+    throw new Error(message);
+  }
   return body;
 }
 function tagList(items) {
@@ -62,18 +75,14 @@ function tagList(items) {
 }
 function date(value) { return new Date(value).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }); }
 function filters() {
-  return new URLSearchParams({ q: state.query.trim(), project: state.project, type: state.type, status: state.status });
+  return new URLSearchParams({ q: state.query.trim(), project: state.project, type: state.type, status: state.status, tag:state.tag });
 }
 function filtered(status = state.status) {
-  const needle = state.query.trim().toLocaleLowerCase();
-  const items = state.assets.filter(a => (!state.type || a.type === state.type) && (!state.project || a.project === state.project) && (!status || a.status === status) &&
-    (!needle || [a.title, a.project, a.character, a.notes, ...a.tags].join(' ').toLocaleLowerCase().includes(needle)));
-  if ($('#sort').value === 'name') items.sort((a,b) => a.title.localeCompare(b.title, 'zh-CN'));
-  if ($('#sort').value === 'oldest') items.sort((a,b) => a.created_at.localeCompare(b.created_at));
-  return items;
+  return selectAssets(state.assets, { ...state, status, sort:$('#sort').value });
 }
 function card(asset) {
-  const button = node('button', 'asset-card');
+  const article = node('article', 'asset-card');
+  const button = node('button', 'asset-open');
   button.type = 'button';
   button.setAttribute('aria-label', `查看 ${asset.title}，${STATUS[asset.status]}，版本 ${asset.latest.number}`);
   const picture = node('div', 'card-image');
@@ -88,7 +97,12 @@ function card(asset) {
   foot.append(type, node('span', '', `${date(asset.updated_at)} 更新`)); content.append(foot);
   button.append(picture, content);
   button.addEventListener('click', async () => { button.disabled = true; try { await showDetails(asset.id); } finally { button.disabled = false; } });
-  return button;
+  const choice = node('label','card-choice');
+  const checkbox = node('input'); checkbox.type = 'checkbox'; checkbox.value = asset.id;
+  checkbox.checked = state.checked.has(asset.id); checkbox.setAttribute('aria-label', `选择 ${asset.title}`);
+  checkbox.addEventListener('change', () => { checkbox.checked ? state.checked.set(asset.id,asset.latest.id) : state.checked.delete(asset.id); workbench.selectionChanged(); });
+  choice.append(checkbox); article.append(button,choice);
+  return article;
 }
 function render() {
   const items = filtered();
@@ -121,13 +135,13 @@ function render() {
   const scope = filtered('');
   document.querySelectorAll('[data-status-count]').forEach(el => { el.textContent = el.dataset.statusCount === 'all' ? scope.length : scope.filter(a=>a.status === el.dataset.statusCount).length; });
   document.querySelectorAll('[data-status]').forEach(button => { button.classList.toggle('active',button.dataset.status === state.status); button.setAttribute('aria-pressed',String(button.dataset.status === state.status)); });
-  const labels = { query:'搜索', project:'项目', type:'类型', status:'状态' };
-  $('#active-filters').replaceChildren(...['query','project','type','status'].filter(key=>state[key]).map(key=>{
+  const labels = { query:'搜索', project:'项目', type:'类型', status:'状态', tag:'标签' };
+  $('#active-filters').replaceChildren(...['query','project','type','status','tag'].filter(key=>state[key]).map(key=>{
     const value = key === 'type' ? TYPE[state[key]] : key === 'status' ? STATUS[state[key]] : state[key];
     const chip = node('button','filter-chip',`${labels[key]}：${value}`); chip.setAttribute('aria-label',`清除${labels[key]}筛选`); chip.append(icon('close'));
     chip.addEventListener('click',()=>{ state[key]=''; if(key === 'query') $('#search').value=''; render(); }); return chip;
   }));
-  $('#reset-filters').hidden = !['query','project','type','status'].some(key=>state[key]);
+  $('#reset-filters').hidden = !['query','project','type','status','tag'].some(key=>state[key]);
   $('#empty').hidden = items.length > 0;
   if (!items.length) {
     $('#empty h3').textContent = state.assets.length ? '这一组灵感，还没有找到。' : '给第一份灵感，留一个位置。';
@@ -137,6 +151,8 @@ function render() {
   $('#empty-import').hidden = state.assets.length > 0;
   $('#empty-reset').hidden = state.assets.length === 0;
   $('#export').disabled = !items.length;
+  $('#retry-connection').hidden = true;
+  workbench?.render(items);
 }
 async function refresh() {
   const body = await api('/api/assets'); state.assets = body.assets; render();
@@ -292,7 +308,8 @@ $('#accept-tags').addEventListener('click', async () => {
 $('#new-version').addEventListener('click',()=>openUpload(state.selected.id));
 $('#add-asset').addEventListener('click',()=>openUpload());
 $('#empty-import').addEventListener('click',()=>openUpload());
-function resetFilters(status = '') { state.type=''; state.project=''; state.query=''; state.status=status; $('#search').value=''; render(); }
+function setScope(scope = {}) { Object.assign(state, {type:'',project:'',query:'',status:'',tag:''}, scope); $('#search').value=state.query; render(); }
+function resetFilters(status = '') { setScope({status}); }
 $('#reset-filters').addEventListener('click',()=>resetFilters());
 $('#empty-reset').addEventListener('click',()=>resetFilters());
 document.querySelectorAll('[data-overview]').forEach(button=>button.addEventListener('click',()=>resetFilters(button.dataset.overview === 'all' ? '' : button.dataset.overview)));
@@ -300,7 +317,7 @@ $('#type-nav').addEventListener('click',event=>{const button=event.target.closes
 $('#search').addEventListener('input',event=>{state.query=event.target.value;render();});
 $('#status-tabs').addEventListener('click',event=>{const button=event.target.closest('[data-status]');if(button){state.status=button.dataset.status;render();}});
 $('#project-filter').addEventListener('change',event=>{state.project=event.target.value;render();});
-$('#sort').addEventListener('change',render);
+$('#sort').addEventListener('change',()=>{remember('sort',$('#sort').value);render();});
 $('#gallery-view').addEventListener('click',()=>setView('gallery'));
 $('#list-view').addEventListener('click',()=>setView('list'));
 $('#theme-toggle').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'));
@@ -323,8 +340,11 @@ document.addEventListener('keydown',event=>{
   if(event.key.toLowerCase() === 'n') { event.preventDefault(); openUpload(); }
 });
 
+workbench = setupWorkbench({ $, state, node, icon, api, refresh, toast, fileData, setScope, showDetails });
+workbench.render([]);
+$('#sort').value = preference('sort','updated',['updated','name','oldest']);
 setTheme(preference('theme','light',['light','dark']));
 setView(preference('view','gallery',['gallery','list']));
 
 try { state.health=await api('/api/health');$('#ai-status').textContent=state.health.aiEnabled?'AI 服务已配置':'本地模式';await refresh(); }
-catch(error){toast(`连接失败：${error.message}`,'error');$('#loading').hidden=true;$('#asset-grid').setAttribute('aria-busy','false');$('#empty').hidden=false;$('#empty h3').textContent='暂时无法连接素材库';$('#empty .empty-copy').textContent='请确认本地服务正在运行，然后刷新页面。';$('#load-demo').hidden=true;$('#empty-import').hidden=true;$('#empty-reset').hidden=true;}
+catch(error){toast(`连接失败：${error.message}`,'error');$('#loading').hidden=true;$('#asset-grid').setAttribute('aria-busy','false');$('#empty').hidden=false;$('#empty h3').textContent='暂时无法连接素材库';$('#empty .empty-copy').textContent='请确认本地服务正在运行，然后重新连接。';$('#load-demo').hidden=true;$('#empty-import').hidden=true;$('#empty-reset').hidden=true;$('#retry-connection').hidden=false;}

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
-import { HttpError, metadata, image, text } from './validation.js';
+import { HttpError, metadata, image, text, STATUSES } from './validation.js';
 
 export function createStore(directory) {
   const media = join(directory, 'media');
@@ -32,11 +32,11 @@ export function createStore(directory) {
     const versions = db.prepare('SELECT * FROM versions WHERE asset_id=? ORDER BY number DESC').all(id).map(publicVersion);
     return { ...row, tags: JSON.parse(row.tags), versions, latest: versions[0] };
   }
-  function list({ q = '', project = '', type = '', status = '' } = {}) {
+  function list({ q = '', project = '', type = '', status = '', tag = '' } = {}) {
     const rows = db.prepare('SELECT id FROM assets ORDER BY updated_at DESC, id ASC').all();
     const needle = q.toLocaleLowerCase();
     return rows.map(row => get(row.id)).filter(a =>
-      (!project || a.project === project) && (!type || a.type === type) && (!status || a.status === status) &&
+      (!project || a.project === project) && (!type || a.type === type) && (!status || a.status === status) && (!tag || a.tags.includes(tag)) &&
       (!needle || [a.title, a.project, a.character, a.notes, ...a.tags].join(' ').toLocaleLowerCase().includes(needle)));
   }
   function duplicate(hash, assetId) {
@@ -90,6 +90,29 @@ export function createStore(directory) {
     transaction(() => insertVersion(id, body, body.changelog));
     return get(id);
   }
+  function updateMany(body) {
+    if (!body || !Array.isArray(body.ids) || !body.ids.length || body.ids.length > 100 ||
+      body.ids.some(id => typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id))) throw new HttpError(400, 'Select 1 to 100 assets');
+    const changes = body.changes;
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes) || !Object.keys(changes).length ||
+      Object.keys(changes).some(key => !['status', 'project'].includes(key))) throw new HttpError(400, 'Only project and status can be changed in bulk');
+    const patch = {};
+    if ('status' in changes) {
+      if (!STATUSES.includes(changes.status)) throw new HttpError(400, 'Unknown status');
+      patch.status = changes.status;
+    }
+    if ('project' in changes) patch.project = text(changes.project, 'project', 100, true);
+    if (!body.versions || typeof body.versions !== 'object' || Array.isArray(body.versions)) throw new HttpError(400, 'Expected image versions are required');
+    const ids = [...new Set(body.ids)];
+    return transaction(() => {
+      // Validate the complete selection before changing any record. A newer image needs fresh human review.
+      for (const id of ids) {
+        const asset = get(id);
+        if (body.versions[id] !== asset.latest.id) throw new HttpError(409, 'An image version changed; refresh the library and select again');
+      }
+      return ids.map(id => update(id, patch));
+    });
+  }
   function seed() {
     if (db.prepare('SELECT count(*) AS n FROM assets').get().n) throw new HttpError(409, 'Demo can only be loaded into an empty library');
     const samples = [
@@ -111,5 +134,5 @@ export function createStore(directory) {
   function manifest(filters) {
     return { schema: 'framevault.manifest.v1', exported_at: new Date().toISOString(), assets: list(filters) };
   }
-  return { db, media, get, list, create, update, addVersion, seed, manifest, close: () => db.close() };
+  return { db, media, get, list, create, update, updateMany, addVersion, seed, manifest, close: () => db.close() };
 }

@@ -1,6 +1,6 @@
 {
   "name": "framevault",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "description": "A local creative asset library with immutable versions and reviewable AI tags.",
   "type": "module",
