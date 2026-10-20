@@ -1,5 +1,15 @@
 # Maintenance record
 
+## 2026-10-20 — v0.2.0 daily-use workbench (on demand)
+
+- Replaced the greeting and statistic tiles with a compact working header, image-led collection and a real project/review rail.
+- Added batch import (up to 20 images), individual names/results, pause and failed-item retry; successful files are never resubmitted by retry.
+- Added multi-selection and atomic project/status editing (up to 100 assets), with selected image-version checks and all-or-nothing validation.
+- Added exact tag filtering with matching manifest exports, project confirmation progress and recent changes. Retained local theme/view preferences and added persistent sorting.
+- All 20 functional/queue tests passed locally, including reopening an existing schema-v1 library. Browser checks used isolated demo libraries and synthetic raster files.
+- Browser import saved two valid images, reported duplicate/unsupported files, and retained successes on retry. Bulk edits survived reload; a new version reset approval, and the downloaded old file matched its original SHA-256.
+- Desktop/mobile checks and screenshots are in `docs/workbench-v0.2.0.md`. No schema migration, new package or real AI-provider call was introduced. Recurring maintenance remains canceled.
+
 ## 2026-10-15 — v0.1.2 icon refinement (on demand)
 
 - Replaced the stacked CSS logo with an original shaded SVG mark and matching favicon.
